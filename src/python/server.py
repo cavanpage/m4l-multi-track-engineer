@@ -13,7 +13,11 @@ Message types handled here grow with each phase:
 """
 
 import json
+import sys
 from pythonosc import dispatcher, osc_server, udp_client
+
+# Force line-buffered stdout so hub_launcher.js receives output immediately
+sys.stdout.reconfigure(line_buffering=True)
 
 HOST          = "localhost"
 RECEIVE_PORT  = 8765   # Max udpsend target

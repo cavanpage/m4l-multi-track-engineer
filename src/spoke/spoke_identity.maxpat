@@ -78,7 +78,10 @@
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 50.0, 220.0, 220.0, 50.0 ],
-					"text" : "jsui spoke_ui.js"
+					"saved_object_attributes" : {
+						"filename" : "spoke_ui.js",
+						"parameter_enable" : 0
+					}
 				}
 			},
 			{

@@ -30,23 +30,29 @@ MaxAPI.addHandler('start', () => {
     return;
   }
 
-  serverProcess = spawn(BINARY_PATH, [], { detached: false });
+  // PYTHONUNBUFFERED ensures stdout is line-buffered even in a PyInstaller binary
+  const env = Object.assign({}, process.env, { PYTHONUNBUFFERED: '1' });
+  serverProcess = spawn(BINARY_PATH, [], { detached: false, env: env });
 
   serverProcess.stdout.on('data', (data) => {
-    MaxAPI.post('[python] ' + data.toString().trim());
+    const line = data.toString().trim();
+    MaxAPI.post('[python] ' + line);
+    // Emit 'running' only once the server confirms it is listening
+    if (line.includes('listening')) {
+      emitStatus('running');
+    }
   });
 
   serverProcess.stderr.on('data', (data) => {
     MaxAPI.post('[python err] ' + data.toString().trim());
   });
 
+  // Emit 'stopped' exactly once — from the close event, not the stop handler
   serverProcess.on('close', (code) => {
     MaxAPI.post('hub_launcher: server exited (code ' + code + ')');
     serverProcess = null;
     emitStatus('stopped');
   });
-
-  emitStatus('running');
 });
 
 MaxAPI.addHandler('stop', () => {

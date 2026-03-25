@@ -95,7 +95,7 @@ This is the file that ships with the plugin. End users never need Python install
 
 ### Test 1 — Device loads, visual panel appears
 
-- Re-drag the device onto the track
+- Re-drag the Spoke device onto the track
 - The device panel should show:
   ```
   ████ Kick Drum
@@ -103,16 +103,16 @@ This is the file that ships with the plugin. End users never need Python install
   ```
   (colored swatch on the left, track name, category badge)
 - Max Console prints: `spoke_meta: {"name":"Kick Drum","color":...,"category":"kick"}`
-- Python terminal prints: `[spoke] Kick Drum           category=kick       color=...`
+- Max Console prints: `[python] [spoke]  Kick Drum           category=kick ...`
 - = **pass**
 
 ---
 
 ### Test 2 — Correct name on renamed track
 
-- Rename the track to `Snare Top`, delete and re-add the device
+- Rename the track to `Snare Top`, delete and re-add the Spoke device
 - Panel updates to show `Snare Top` / `snare`
-- Python terminal shows the updated name
+- Max Console shows `[python] [spoke]  Snare Top ...`
 - = **pass**
 
 ---
@@ -120,25 +120,25 @@ This is the file that ships with the plugin. End users never need Python install
 ### Test 3 — Color swatch matches track color
 
 - Right-click the track → change to bright red
-- Re-add the device
-- Left strip in the panel should render red
-- Python terminal shows the updated color int
+- Re-add the Spoke device
+- Left strip in the panel renders red
+- Max Console shows updated color int in `[python]` line
 - = **pass**
 
 ---
 
 ### Test 4 — Hot-rename updates panel without reload
 
-- With the device loaded, rename the track while Ableton is running
+- With the Spoke device loaded, rename the track while Ableton is running
 - Panel should update within ~1 second automatically
-- Python terminal shows the new name
+- Max Console shows new name in `[python]` line
 - No device reload required = **pass**
 
 ---
 
 ### Test 5 — Category keywords
 
-Rename the track to each of the following and re-add the device:
+Rename the track to each of the following and re-add the Spoke device:
 
 | Track name | Expected category |
 |---|---|
@@ -147,30 +147,18 @@ Rename the track to each of the following and re-add the device:
 | `Kick 808` | `kick` |
 | `Bus Group 1` | `unknown` |
 
-All four correct in the panel and Python terminal = **pass**
+All four correct in both the panel and the `[python]` Max Console line = **pass**
 
 > To add keywords: edit `KEYWORD_MAP` in `spoke_identity.js` and save. `autowatch = 1` reloads it immediately.
 
 ---
 
-### Test 6 — Python ack returns to Max
+### Test 6 — Ack returns from binary to Max
 
-- With the device loaded and Python running
-- Max Console should show a `python_ack` line alongside each `spoke_meta` line:
+- With Hub and Spoke loaded, Max Console should show a `python_ack` line for each registration:
   ```
-  python_ack: { type: 'ack', spoke: 'Kick Drum', registered: 1 }
+  python_ack: /ack {"spoke": "Kick Drum", "registered": 1}
   ```
-- = **pass**
-
----
-
-### Test 7 — Bridge reconnects when Python restarts
-
-- Stop the Python server (`Ctrl+C`)
-- Max Console should show: `bridge: disconnected — retrying in 2000ms`
-- Restart `python server.py`
-- Max Console should show: `bridge: connected to Python server at ws://localhost:8765`
-- Re-add the device — Python receives it normally
 - = **pass**
 
 ---
@@ -203,14 +191,14 @@ All four correct in the panel and Python terminal = **pass**
 [ ] No Python installation on PATH required for any of the above
 ```
 
-All fourteen green → **Phase 1 complete. Safe to start [Phase 2](./phase-2-bridge-layer.md).**
+All thirteen green → **Phase 1 complete. Safe to start [Phase 2](./phase-2-bridge-layer.md).**
 
 ---
 
 ## Interface contract (frozen for Phase 2+)
 
 ```js
-// TrackMeta — output of spoke_identity.js, received by Python as msg.payload
+// TrackMeta — output of spoke_identity.js outlet 0 (JSON symbol)
 {
   name: string,     // e.g. "Kick Drum"
   color: number,    // Ableton RGB int, e.g. 16711680
@@ -218,12 +206,14 @@ All fourteen green → **Phase 1 complete. Safe to start [Phase 2](./phase-2-bri
 }
 ```
 
-```python
-# WebSocket message shape — bridge.js → server.py
-{
-  "type": "meta",
-  "payload": TrackMeta
-}
+```
+// OSC message — udpsend → server.py
+address:  /spoke/meta
+argument: TrackMeta as JSON string
+
+// OSC ack — server.py → udpreceive
+address:  /ack
+argument: {"spoke": string, "registered": number}
 ```
 
 ---
