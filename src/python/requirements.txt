@@ -1,0 +1,7 @@
+# Phase 1
+websockets>=11.0
+
+# Phase 4+ (masking engine, AI classification)
+# numpy>=1.26
+# librosa>=0.10
+# torch>=2.0

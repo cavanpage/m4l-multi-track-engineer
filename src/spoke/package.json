@@ -1,0 +1,8 @@
+{
+  "name": "spoke",
+  "version": "1.0.0",
+  "description": "Node for Max dependencies for the Spoke device",
+  "dependencies": {
+    "ws": "^8.0.0"
+  }
+}

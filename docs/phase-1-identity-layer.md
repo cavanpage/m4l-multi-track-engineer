@@ -1,162 +1,141 @@
 # Phase 1 — Identity Layer: Build & Test Guide
 
-**Goal:** A Spoke device reads its own track name and color from the LOM and logs them to the Max Console.
+**Goal:** Each Spoke device reads its own track name and color from the LOM, renders a visual panel, and registers itself with the Python server.
 
-**Prerequisite:** Ableton Live 11+ with Max for Live installed.
+**Prerequisites:**
+- Ableton Live 11+ with Max for Live
+- Node.js 18+ (for n4m)
+- Python 3.11+
+
+**Source files:**
+
+| File | Role |
+|---|---|
+| [`src/spoke/spoke_identity.js`](../src/spoke/spoke_identity.js) | LOM reads via LiveAPI |
+| [`src/spoke/spoke_ui.js`](../src/spoke/spoke_ui.js) | jsui visual panel |
+| [`src/spoke/bridge.js`](../src/spoke/bridge.js) | n4m WebSocket client → Python |
+| [`src/spoke/spoke_identity.maxpat`](../src/spoke/spoke_identity.maxpat) | Pre-wired Max patch |
+| [`src/python/server.py`](../src/python/server.py) | Python WebSocket server |
+| [`src/python/requirements.txt`](../src/python/requirements.txt) | Python dependencies |
 
 ---
 
-## Step 1: Create the M4L Device File
-
-1. In Ableton, create a new **Audio Track** and rename it `Kick Drum`
-2. In the browser sidebar: **Max for Live → Max Audio Effect** — drag a blank one onto the track
-3. Click the **pencil icon** on the device to open the Max patcher
-4. In Max, go **File → Save As** → save as `spoke_identity.amxd` in your project folder
-
----
-
-## Step 2: Build the Patch
-
-Switch to **patching mode** (`Cmd+E`) and place these objects, connected top to bottom:
+## Signal flow
 
 ```
-[live.thisdevice]
-       |
-  (outlet 1 = device id on load)
-       |
-[prepend set]
-       |
-[live.object]          ←── points to this Spoke device
-       |
-[get canonical_parent] ←── requests the parent track's id
-       |
-[route id]             ←── extracts the id number from "id 42"-style message
-       |
-[prepend set]
-       |
-[live.object]          ←── points to the track
-       |
-[get name color]       ←── requests both properties in one shot
-       |
-[print track_info]     ←── outputs to Max Console
+[live.thisdevice] → bang on load
+        │
+[js spoke_identity.js] ← reads LOM via LiveAPI (name, color, category)
+        │                  watches track name for live renames
+        ├──[prepend parse]──► [jsui spoke_ui.js]     visual panel in device
+        ├──[prepend meta]───► [node.script bridge.js] → WebSocket → Python
+        └──[print spoke_meta]                         Max Console debug
 ```
 
-**Wiring notes:**
-- `live.thisdevice` left outlet → `prepend set` → first `live.object`
-- First `live.object` left outlet → `get canonical_parent`
-- `get canonical_parent` outlet → `route id`
-- `route id` outlet → `prepend set` → second `live.object`
-- Second `live.object` left outlet → `get name color` → `print track_info`
+---
 
-Lock the patch (`Cmd+E`) and save (`Cmd+S`).
+## Why two JS environments?
+
+| Object | Environment | Why |
+|---|---|---|
+| `js spoke_identity.js` | Max `js` (ES5) | Only environment with native `LiveAPI` for LOM access |
+| `jsui spoke_ui.js` | Max `js` (ES5) | Only environment with `mgraphics` for drawing in a device panel |
+| `node.script bridge.js` | Node for Max (n4m) | Needs `ws` npm package for WebSocket |
+
+`LiveAPI` and `mgraphics` are not available in n4m. n4m's npm access is not available in the `js` object. Each piece uses the right environment for the job.
 
 ---
 
-## Step 3: Open the Max Console
+## Step 1: Install dependencies
 
-In Max: **Window → Max Console** (`Cmd+Shift+M`)
+**Node (n4m bridge):**
+```bash
+cd src/spoke
+npm install
+```
 
-Keep this open — it is your test output for all Phase 1 tests.
+**Python server:**
+```bash
+cd src/python
+pip install -r requirements.txt
+```
 
 ---
 
-## Step 4: Run the Tests
+## Step 2: Start the Python server
 
-### Test 1 — Patch loads without errors
+```bash
+cd src/python
+python server.py
+```
 
-- Delete the device from the track and re-drag it on
-- Console should show:
+You should see:
+```
+[server] listening on ws://localhost:8765
+```
+
+Leave this running in a terminal.
+
+---
+
+## Step 3: Load the device into Ableton
+
+1. Create a new **Audio Track** and rename it `Kick Drum`
+2. In the Ableton browser, navigate to `src/spoke/`
+3. Drag `spoke_identity.maxpat` onto the track
+4. When prompted, save as `spoke_identity.amxd` in `src/spoke/`
+5. Open the Max Console: **Window → Max Console** (`Cmd+Shift+M`)
+
+---
+
+## Step 4: Run the tests
+
+### Test 1 — Device loads, visual panel appears
+
+- Re-drag the device onto the track
+- The device panel should show:
   ```
-  track_info: name Kick Drum
-  track_info: color 16711680
+  ████ Kick Drum
+       kick
   ```
-- No red error messages = **pass**
+  (colored swatch on the left, track name, category badge)
+- Max Console prints: `spoke_meta: {"name":"Kick Drum","color":...,"category":"kick"}`
+- Python terminal prints: `[spoke] Kick Drum           category=kick       color=...`
+- = **pass**
 
 ---
 
-### Test 2 — Correct name when track is renamed
+### Test 2 — Correct name on renamed track
 
-- Rename the Ableton track to `Snare`
-- Delete and re-add the device (or add a `[bang]` button wired to `live.thisdevice` to re-trigger manually)
-- Console should print `name Snare` = **pass**
-
----
-
-### Test 3 — Color int matches the track swatch
-
-- Right-click the track name in Ableton → change the color to bright red
-- Re-trigger the device
-- Console prints a number — e.g. `16711680`
-- Convert to hex: `16711680` → `#FF0000` = red = **pass**
-
-> Use any decimal-to-hex color converter to verify other colors.
+- Rename the track to `Snare Top`, delete and re-add the device
+- Panel updates to show `Snare Top` / `snare`
+- Python terminal shows the updated name
+- = **pass**
 
 ---
 
-### Test 4 — Hot-rename fires a live update
+### Test 3 — Color swatch matches track color
 
-The tests above re-trigger manually. To watch for live renames, extend the patch with a `[live.observer]`:
-
-```
-[live.object]  (the track live.object from Step 2)
-       |
-[live.observer @property name]
-       |
-[print name_changed]
-```
-
-- Rename the track while Ableton is running
-- Console should print `name_changed: <new name>` within ~1 second = **pass**
+- Right-click the track → change to bright red
+- Re-add the device
+- Left strip in the panel should render red
+- Python terminal shows the updated color int
+- = **pass**
 
 ---
 
-### Test 5 — JS categorization returns correct category or `"unknown"`
+### Test 4 — Hot-rename updates panel without reload
 
-Create `spoke_identity.js` in the **same folder** as your `.amxd` file:
+- With the device loaded, rename the track while Ableton is running
+- Panel should update within ~1 second automatically
+- Python terminal shows the new name
+- No device reload required = **pass**
 
-```js
-// spoke_identity.js
-const MaxAPI = require('max-api');
+---
 
-const KEYWORD_MAP = {
-  kick:   'kick',
-  snare:  'snare',
-  hat:    'hat',
-  hihat:  'hat',
-  bass:   'bass',
-  vocal:  'vocal',
-  vox:    'vocal',
-  synth:  'synth',
-  guitar: 'guitar',
-  piano:  'piano',
-  pad:    'pad',
-};
+### Test 5 — Category keywords
 
-function categorize(name) {
-  const lower = name.toLowerCase();
-  for (const [keyword, category] of Object.entries(KEYWORD_MAP)) {
-    if (lower.includes(keyword)) return category;
-  }
-  return 'unknown';
-}
-
-MaxAPI.addHandler('name', (trackName) => {
-  const category = categorize(trackName);
-  MaxAPI.outlet({ name: trackName, category });
-});
-```
-
-In the Max patch, replace `[print track_info]` with:
-
-```
-[js spoke_identity.js]
-       |
-[print spoke_meta]
-```
-
-Wire the `get name` outlet into the `[js spoke_identity.js]` inlet.
-
-**Run these cases:**
+Rename the track to each of the following and re-add the device:
 
 | Track name | Expected category |
 |---|---|
@@ -165,37 +144,68 @@ Wire the `get name` outlet into the `[js spoke_identity.js]` inlet.
 | `Kick 808` | `kick` |
 | `Bus Group 1` | `unknown` |
 
-All four correct = **pass**
+All four correct in the panel and Python terminal = **pass**
+
+> To add keywords: edit `KEYWORD_MAP` in `spoke_identity.js` and save. `autowatch = 1` reloads it immediately.
+
+---
+
+### Test 6 — Python ack returns to Max
+
+- With the device loaded and Python running
+- Max Console should show a `python_ack` line alongside each `spoke_meta` line:
+  ```
+  python_ack: { type: 'ack', spoke: 'Kick Drum', registered: 1 }
+  ```
+- = **pass**
+
+---
+
+### Test 7 — Bridge reconnects when Python restarts
+
+- Stop the Python server (`Ctrl+C`)
+- Max Console should show: `bridge: disconnected — retrying in 2000ms`
+- Restart `python server.py`
+- Max Console should show: `bridge: connected to Python server at ws://localhost:8765`
+- Re-add the device — Python receives it normally
+- = **pass**
 
 ---
 
 ## Phase 1 Test Checklist
 
-Copy this into your notes and tick each off before starting Phase 2:
-
 ```
-[ ] Patch loads — name + color print to console on device load
-[ ] Console shows correct name after track rename + re-trigger
-[ ] Color decimal converts to the correct hex swatch color
-[ ] live.observer fires name_changed on hot-rename without re-loading device
-[ ] Known keywords (kick, vocal, pad) return the correct category
-[ ] Unrecognized name returns category: unknown
+[ ] Visual panel renders color swatch, track name, and category on load
+[ ] Panel shows correct name after track rename + device reload
+[ ] Color swatch matches the Ableton track color swatch
+[ ] Hot-rename updates the panel automatically without reloading
+[ ] Known keywords return the correct category in the panel
+[ ] Unrecognized name shows category: unknown
+[ ] Python terminal receives and logs each registration
+[ ] python_ack appears in Max Console for each registration
+[ ] Bridge reconnects automatically when Python server restarts
 ```
 
-All six green → **Phase 1 complete. Safe to start [Phase 2](./phase-2-bridge-layer.md).**
+All nine green → **Phase 1 complete. Safe to start [Phase 2](./phase-2-bridge-layer.md).**
 
 ---
 
-## Interface Contract (frozen for Phase 2+)
-
-The shape below is the output of `spoke_identity.js`. Downstream phases depend on this — do not change property names.
+## Interface contract (frozen for Phase 2+)
 
 ```js
-// TrackMeta
+// TrackMeta — output of spoke_identity.js, received by Python as msg.payload
 {
   name: string,     // e.g. "Kick Drum"
   color: number,    // Ableton RGB int, e.g. 16711680
   category: string  // e.g. "kick" | "vocal" | "unknown"
+}
+```
+
+```python
+# WebSocket message shape — bridge.js → server.py
+{
+  "type": "meta",
+  "payload": TrackMeta
 }
 ```
 
