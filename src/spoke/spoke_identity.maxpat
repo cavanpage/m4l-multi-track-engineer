@@ -30,7 +30,7 @@
 		"enablehscroll" : 1,
 		"enablevscroll" : 1,
 		"devicewidth" : 0.0,
-		"description" : "Spoke Identity — Phase 1. Reads track name, color, category. Renders visual panel. Sends metadata to Python server.",
+		"description" : "Spoke Identity — Phase 1. Reads track name, color, category. Renders visual panel. Sends metadata to Python via UDP/OSC.",
 		"digest" : "",
 		"tags" : "spoke identity m4l multi-track-engineer phase1",
 		"style" : "",
@@ -88,8 +88,8 @@
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 310.0, 160.0, 110.0, 22.0 ],
-					"text" : "prepend meta"
+					"patching_rect" : [ 310.0, 160.0, 160.0, 22.0 ],
+					"text" : "prepend /spoke/meta"
 				}
 			},
 			{
@@ -97,10 +97,10 @@
 					"id" : "obj-6",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 310.0, 220.0, 160.0, 22.0 ],
-					"text" : "node.script bridge.js"
+					"numoutlets" : 0,
+					"outlettype" : [ ],
+					"patching_rect" : [ 310.0, 220.0, 175.0, 22.0 ],
+					"text" : "udpsend 127.0.0.1 8765"
 				}
 			},
 			{
@@ -110,7 +110,7 @@
 					"numinlets" : 1,
 					"numoutlets" : 0,
 					"outlettype" : [ ],
-					"patching_rect" : [ 50.0, 310.0, 130.0, 22.0 ],
+					"patching_rect" : [ 50.0, 315.0, 130.0, 22.0 ],
 					"text" : "print spoke_meta"
 				}
 			},
@@ -119,25 +119,36 @@
 					"id" : "obj-8",
 					"maxclass" : "newobj",
 					"numinlets" : 1,
-					"numoutlets" : 0,
-					"outlettype" : [ ],
-					"patching_rect" : [ 310.0, 310.0, 130.0, 22.0 ],
-					"text" : "print python_ack"
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 310.0, 290.0, 120.0, 22.0 ],
+					"text" : "udpreceive 8766"
 				}
 			},
 			{
 				"box" : {
 					"id" : "obj-9",
-					"maxclass" : "comment",
+					"maxclass" : "newobj",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 190.0, 43.0, 300.0, 20.0 ],
-					"text" : "← bangs when device loads into Live"
+					"outlettype" : [ ],
+					"patching_rect" : [ 310.0, 350.0, 130.0, 22.0 ],
+					"text" : "print python_ack"
 				}
 			},
 			{
 				"box" : {
 					"id" : "obj-10",
+					"maxclass" : "comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 190.0, 43.0, 280.0, 20.0 ],
+					"text" : "← bangs when device loads into Live"
+				}
+			},
+			{
+				"box" : {
+					"id" : "obj-11",
 					"maxclass" : "comment",
 					"numinlets" : 1,
 					"numoutlets" : 0,
@@ -147,22 +158,32 @@
 			},
 			{
 				"box" : {
-					"id" : "obj-11",
+					"id" : "obj-12",
 					"maxclass" : "comment",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 50.0, 285.0, 220.0, 20.0 ],
+					"patching_rect" : [ 50.0, 283.0, 220.0, 20.0 ],
 					"text" : "visual panel (color swatch + name + category)"
 				}
 			},
 			{
 				"box" : {
-					"id" : "obj-12",
+					"id" : "obj-13",
 					"maxclass" : "comment",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 310.0, 285.0, 260.0, 20.0 ],
-					"text" : "← WebSocket bridge to Python server (ws://localhost:8765)"
+					"patching_rect" : [ 310.0, 193.0, 280.0, 20.0 ],
+					"text" : "← UDP/OSC → Python server on port 8765"
+				}
+			},
+			{
+				"box" : {
+					"id" : "obj-14",
+					"maxclass" : "comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 445.0, 293.0, 240.0, 20.0 ],
+					"text" : "← receives acks from Python on port 8766"
 				}
 			}
 		],
@@ -205,8 +226,8 @@
 			},
 			{
 				"patchline" : {
-					"destination" : [ "obj-8", 0 ],
-					"source" : [ "obj-6", 0 ]
+					"destination" : [ "obj-9", 0 ],
+					"source" : [ "obj-8", 0 ]
 				}
 			}
 		],
@@ -219,12 +240,6 @@
 			},
 			{
 				"name" : "spoke_ui.js",
-				"patcherrelativepath" : ".",
-				"type" : "Javascript",
-				"implicit" : 1
-			},
-			{
-				"name" : "bridge.js",
 				"patcherrelativepath" : ".",
 				"type" : "Javascript",
 				"implicit" : 1

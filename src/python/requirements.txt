@@ -1,7 +1,7 @@
 # Phase 1
-websockets>=11.0
+python-osc>=1.8
 
-# Phase 4+ (masking engine, AI classification)
+# Phase 4+ (uncomment as needed)
 # numpy>=1.26
 # librosa>=0.10
 # torch>=2.0

@@ -13,9 +13,8 @@
 |---|---|
 | [`src/spoke/spoke_identity.js`](../src/spoke/spoke_identity.js) | LOM reads via LiveAPI |
 | [`src/spoke/spoke_ui.js`](../src/spoke/spoke_ui.js) | jsui visual panel |
-| [`src/spoke/bridge.js`](../src/spoke/bridge.js) | n4m WebSocket client → Python |
 | [`src/spoke/spoke_identity.maxpat`](../src/spoke/spoke_identity.maxpat) | Pre-wired Max patch |
-| [`src/python/server.py`](../src/python/server.py) | Python WebSocket server |
+| [`src/python/server.py`](../src/python/server.py) | Python OSC/UDP server |
 | [`src/python/requirements.txt`](../src/python/requirements.txt) | Python dependencies |
 
 ---
@@ -27,10 +26,14 @@
         │
 [js spoke_identity.js] ← reads LOM via LiveAPI (name, color, category)
         │                  watches track name for live renames
-        ├──[prepend parse]──► [jsui spoke_ui.js]     visual panel in device
-        ├──[prepend meta]───► [node.script bridge.js] → WebSocket → Python
-        └──[print spoke_meta]                         Max Console debug
+        ├──[prepend parse]──────► [jsui spoke_ui.js]        visual panel
+        ├──[prepend /spoke/meta]─► [udpsend 127.0.0.1 8765] → Python
+        ├──[print spoke_meta]                                Max Console debug
+        │
+[udpreceive 8766] ──► [print python_ack]   ← acks back from Python
 ```
+
+No npm. No n4m. Max's native `udpsend`/`udpreceive` handle all communication with Python.
 
 ---
 
@@ -40,25 +43,22 @@
 |---|---|---|
 | `js spoke_identity.js` | Max `js` (ES5) | Only environment with native `LiveAPI` for LOM access |
 | `jsui spoke_ui.js` | Max `js` (ES5) | Only environment with `mgraphics` for drawing in a device panel |
-| `node.script bridge.js` | Node for Max (n4m) | Needs `ws` npm package for WebSocket |
 
-`LiveAPI` and `mgraphics` are not available in n4m. n4m's npm access is not available in the `js` object. Each piece uses the right environment for the job.
+n4m is not needed until Phase 4 when TensorFlow.js requires npm packages.
 
 ---
 
 ## Step 1: Install dependencies
 
-**Node (n4m bridge):**
+**Python server** (uses a virtualenv — macOS Homebrew Python requires it):
 ```bash
-cd src/spoke
-npm install
+# Run once from the repo root
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r src/python/requirements.txt
 ```
 
-**Python server:**
-```bash
-cd src/python
-pip install -r requirements.txt
-```
+After the first setup, just `source .venv/bin/activate` before running the server.
 
 ---
 
