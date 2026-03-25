@@ -14,6 +14,9 @@ An Ableton Live toolset that identifies frequency masking and send space conflic
 - [Recommended Reference Gear](#recommended-reference-gear)
 - [Development Timeline](#development-timeline)
 
+**Phase guides:**
+- [Phase 1 — Identity Layer](docs/phase-1-identity-layer.md)
+
 ---
 
 ## Project Overview
@@ -229,6 +232,8 @@ Each phase is self-contained and testable before the next begins. Interfaces bet
 ### Phase 1 — Identity Layer (Spoke Metadata)
 
 **Goal:** A Spoke device reads its own track name and color from the LOM and logs them to the Max Console.
+
+> Build & test walkthrough: [docs/phase-1-identity-layer.md](docs/phase-1-identity-layer.md)
 
 **Deliverables:**
 - `spoke_identity.js` — Node for Max script exposing a `getTrackMeta()` function
