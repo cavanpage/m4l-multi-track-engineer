@@ -1,11 +1,11 @@
 # Phase 1 — Identity Layer: Build & Test Guide
 
-**Goal:** Each Spoke device reads its own track name and color from the LOM, renders a visual panel, and registers itself with the Python server.
+**Goal:** Each Spoke device reads its own track name and color from the LOM, renders a visual panel, and registers itself with the Python server. The Hub device auto-launches and manages the Python server binary — no manual Python required.
 
 **Prerequisites:**
 - Ableton Live 11+ with Max for Live
-- Node.js 18+ (for n4m)
-- Python 3.11+
+- Node.js 18+ (for n4m in Hub)
+- Python 3.11+ (build-time only — end users do not need Python)
 
 **Source files:**
 
@@ -13,27 +13,37 @@
 |---|---|
 | [`src/spoke/spoke_identity.js`](../src/spoke/spoke_identity.js) | LOM reads via LiveAPI |
 | [`src/spoke/spoke_ui.js`](../src/spoke/spoke_ui.js) | jsui visual panel |
-| [`src/spoke/spoke_identity.maxpat`](../src/spoke/spoke_identity.maxpat) | Pre-wired Max patch |
+| [`src/spoke/spoke_identity.maxpat`](../src/spoke/spoke_identity.maxpat) | Spoke Max patch |
+| [`src/hub/hub_launcher.js`](../src/hub/hub_launcher.js) | n4m binary lifecycle manager |
+| [`src/hub/hub.maxpat`](../src/hub/hub.maxpat) | Hub Max patch (place on Master) |
 | [`src/python/server.py`](../src/python/server.py) | Python OSC/UDP server |
 | [`src/python/requirements.txt`](../src/python/requirements.txt) | Python dependencies |
+| [`build.sh`](../build.sh) | Compiles server.py → standalone binary |
 
 ---
 
 ## Signal flow
 
 ```
-[live.thisdevice] → bang on load
-        │
-[js spoke_identity.js] ← reads LOM via LiveAPI (name, color, category)
-        │                  watches track name for live renames
-        ├──[prepend parse]──────► [jsui spoke_ui.js]        visual panel
-        ├──[prepend /spoke/meta]─► [udpsend 127.0.0.1 8765] → Python
-        ├──[print spoke_meta]                                Max Console debug
-        │
-[udpreceive 8766] ──► [print python_ack]   ← acks back from Python
+HUB (Master track)
+  [live.thisdevice] ──load──► [start] ──► [node.script hub_launcher.js]
+                    ──free──► [stop]  ──►        │
+                                          spawns spoke_server binary
+                                          (no Python install needed by user)
+
+SPOKE (any audio track)
+  [live.thisdevice] → bang on load
+          │
+  [js spoke_identity.js] ← reads LOM via LiveAPI (name, color, category)
+          │                  watches track name for live renames
+          ├──[prepend parse]──────► [jsui spoke_ui.js]        visual panel
+          ├──[prepend /spoke/meta]─► [udpsend 127.0.0.1 8765] → binary
+          └──[print spoke_meta]                                Max Console debug
+
+  [udpreceive 8766] ──► [print python_ack]   ← acks from binary
 ```
 
-No npm. No n4m. Max's native `udpsend`/`udpreceive` handle all communication with Python.
+No npm. No manual Python. Hub auto-starts the binary; Spoke communicates via native `udpsend`/`udpreceive`.
 
 ---
 
@@ -48,9 +58,8 @@ n4m is not needed until Phase 4 when TensorFlow.js requires npm packages.
 
 ---
 
-## Step 1: Install dependencies
+## Step 1: Set up the Python environment (build-time only)
 
-**Python server** (uses a virtualenv — macOS Homebrew Python requires it):
 ```bash
 # Run once from the repo root
 python3 -m venv .venv
@@ -58,32 +67,26 @@ source .venv/bin/activate
 pip install -r src/python/requirements.txt
 ```
 
-After the first setup, just `source .venv/bin/activate` before running the server.
-
 ---
 
-## Step 2: Start the Python server
+## Step 2: Build the server binary
 
 ```bash
-cd src/python
-python server.py
+./build.sh
 ```
 
-You should see:
-```
-[server] listening on ws://localhost:8765
-```
+Output: `src/hub/spoke_server`
 
-Leave this running in a terminal.
+This is the file that ships with the plugin. End users never need Python installed.
 
 ---
 
-## Step 3: Load the device into Ableton
+## Step 3: Load the devices into Ableton
 
 1. Create a new **Audio Track** and rename it `Kick Drum`
-2. In the Ableton browser, navigate to `src/spoke/`
-3. Drag `spoke_identity.maxpat` onto the track
-4. When prompted, save as `spoke_identity.amxd` in `src/spoke/`
+2. Create a **Master** or dedicated **Mix Bus** track
+3. In the Ableton browser, navigate to `src/hub/` → drag `hub.maxpat` onto the Master track → save as `hub.amxd`
+4. Navigate to `src/spoke/` → drag `spoke_identity.maxpat` onto the Kick Drum track → save as `spoke_identity.amxd`
 5. Open the Max Console: **Window → Max Console** (`Cmd+Shift+M`)
 
 ---
@@ -174,6 +177,7 @@ All four correct in the panel and Python terminal = **pass**
 
 ## Phase 1 Test Checklist
 
+**Identity (Spoke):**
 ```
 [ ] Visual panel renders color swatch, track name, and category on load
 [ ] Panel shows correct name after track rename + device reload
@@ -181,12 +185,25 @@ All four correct in the panel and Python terminal = **pass**
 [ ] Hot-rename updates the panel automatically without reloading
 [ ] Known keywords return the correct category in the panel
 [ ] Unrecognized name shows category: unknown
-[ ] Python terminal receives and logs each registration
-[ ] python_ack appears in Max Console for each registration
-[ ] Bridge reconnects automatically when Python server restarts
 ```
 
-All nine green → **Phase 1 complete. Safe to start [Phase 2](./phase-2-bridge-layer.md).**
+**Communication:**
+```
+[ ] python_ack appears in Max Console for each Spoke registration
+[ ] Ack includes correct spoke name and registered count
+```
+
+**Packaging (as shipped):**
+```
+[ ] build.sh runs without errors and produces src/hub/spoke_server
+[ ] Hub device loaded → Max Console shows "hub_launcher: running" (no terminal open)
+[ ] Spoke registers successfully with the auto-launched binary
+[ ] Hub device removed → Max Console shows "hub_launcher: stopped"
+[ ] Binary re-launched after Hub device is re-added to the session
+[ ] No Python installation on PATH required for any of the above
+```
+
+All fourteen green → **Phase 1 complete. Safe to start [Phase 2](./phase-2-bridge-layer.md).**
 
 ---
 
