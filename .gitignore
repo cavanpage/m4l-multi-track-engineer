@@ -1,3 +1,7 @@
 .venv/
+.build/
 __pycache__/
 *.pyc
+*.spec
+src/hub/spoke_server
+src/hub/spoke_server.exe
